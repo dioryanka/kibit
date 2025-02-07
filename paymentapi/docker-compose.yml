@@ -1,0 +1,59 @@
+version: "3"
+services:
+  postgresDb:
+    image: postgres:15-alpine
+    container_name: docker-postgres-springboot-db
+    ports:
+      - "5432:5432"
+    networks:
+      - network
+    volumes:
+      - volume:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=paymentapi
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=mydb
+  zookeeper:
+    image: wurstmeister/zookeeper
+    networks:
+      - network
+    ports:
+      - 2181:2181
+    container_name: zookeeper
+
+  broker:
+    image: wurstmeister/kafka
+    container_name: broker
+    networks:
+      - network
+    ports:
+      - "9092:9092"  # External access
+      - "29092:29092" # Internal Docker access
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://broker:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CREATE_TOPIC: "topic-event-1"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    networks:
+      - network
+    depends_on:
+      - broker
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: "broker:29092"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+networks:
+  network:
+
+volumes:
+  volume:
