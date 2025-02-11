@@ -21,7 +21,7 @@ In this example we have a Wallet table as well, where the walletId represents th
 In the root directory we can find a docker-compose.yml wich contains all the appropriate service.
 (postgresSQl, Kafka broker, Kafka-UI, paymentApi app, ConsumerApp)
 
-docker-compose up
+please you mvnw clean package -Dmaven.test.skip=true to compile consumerApp and paymentApi, then you can run:  docker-compose up
 
 Kafka-UI: http://localhost:8080/ (to validate the message traffic on kafka)
 SwaggerUI: http://localhost:7000/swagger-ui/index.html  to test the endpoints.

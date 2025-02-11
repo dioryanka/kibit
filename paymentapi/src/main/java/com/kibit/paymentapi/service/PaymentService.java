@@ -16,7 +16,6 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.retry.annotation.CircuitBreaker;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -46,13 +45,13 @@ public class PaymentService {
     @Transactional
     public SendMoneyResponse proceedMoneyTransfer(SendMoneyRequest sendMoneyRequest) {
         //check the query is duplicated or not
-        if (transactionRepository.findById(sendMoneyRequest.getIdempotencyKey()).isPresent()) {
-            LOG.error("The given request has already been available in out transactional db, idempotencyKey: {}", sendMoneyRequest.getIdempotencyKey());
+        if (transactionRepository.findById(sendMoneyRequest.idempotencyKey()).isPresent()) {
+            LOG.error("The given request has already been available in out transactional db, idempotencyKey: {}", sendMoneyRequest.idempotencyKey());
 
             throw new DuplicatedRequestException("The current request has been duplicated");
         }
 
-        if (!hasEnoughAmount(sendMoneyRequest.getFromUserId(), sendMoneyRequest.getAmount())) {
+        if (!hasEnoughAmount(sendMoneyRequest.fromUserId(), sendMoneyRequest.amount())) {
             return new SendMoneyResponse("Insufficient funds");
         }
 
@@ -72,7 +71,7 @@ public class PaymentService {
             }
         });
 
-        return new SendMoneyResponse("The sendMoney request for the following key: %s is now EXECUTING".formatted(sendMoneyRequest.getIdempotencyKey()));
+        return new SendMoneyResponse("The sendMoney request for the following key: %s is now EXECUTING".formatted(sendMoneyRequest.idempotencyKey()));
     }
 
     @Transactional
@@ -104,18 +103,18 @@ public class PaymentService {
     private boolean hasEnoughAmount(Long userId, int chargedAmount) throws MissingWalletException {
         Wallet wallet = walletRepository.findById(userId).orElseThrow(() -> {
             LOG.error("The given userId does not have a Wallet, userId: {}", userId);
-            throw new MissingWalletException("Wallet not found for the userId");
+            return new MissingWalletException("Wallet not found for the userId");
         });
 
         return (wallet.getWalletBalance() - chargedAmount) >= 0;
     }
 
     private Transaction createTransactionFromSendMoneyRequest(SendMoneyRequest sendMoneyRequest) {
-        return new Transaction(sendMoneyRequest.getIdempotencyKey(),
-                sendMoneyRequest.getFromUserId(),
-                sendMoneyRequest.getToUserId(),
-                sendMoneyRequest.getAmount(),
-                sendMoneyRequest.getCreditCardDetails(),
+        return new Transaction(sendMoneyRequest.idempotencyKey(),
+                sendMoneyRequest.fromUserId(),
+                sendMoneyRequest.toUserId(),
+                sendMoneyRequest.amount(),
+                sendMoneyRequest.creditCardDetails(),
                 Status.EXECUTING);
     }
 

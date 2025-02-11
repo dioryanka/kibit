@@ -1,7 +1,5 @@
 package com.kibit.paymentapi.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.kibit.paymentapi.model.Status;
 import org.springframework.lang.NonNull;
 
 import java.util.UUID;

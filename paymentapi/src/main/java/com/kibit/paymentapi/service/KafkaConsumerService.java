@@ -31,7 +31,7 @@ public class KafkaConsumerService {
         Status status = Status.fromValue(kafkaMessage.getStatus());
 
         if (status == null) {
-            throw new StatusBindingException("Could not bind the appropriate status");
+            throw new StatusBindingException("Could not bind the status");
         }
 
         paymentService.updateBalanceAndTransactionData(kafkaMessage.getIdempotencyKey(), kafkaMessage.getFromUserId(), status);

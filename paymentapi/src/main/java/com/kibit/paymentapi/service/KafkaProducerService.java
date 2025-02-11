@@ -33,5 +33,5 @@ public class KafkaProducerService {
         kafkaTemplate.send(topic, UUID.randomUUID().toString(), kafkaMessage);
     }
 
-    //TODO: fallbackMethod would be needed to store the messages in a queue or db
+    //TODO: fallbackMethod would be needed to store the messages in a queue or db in case of failing msg
 }

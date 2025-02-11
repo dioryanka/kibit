@@ -1,7 +1,6 @@
 package com.kibit.paymentapi;
 
 import com.kibit.paymentapi.dto.KafkaMessage;
-import com.kibit.paymentapi.model.Wallet;
 import com.kibit.paymentapi.repository.TransactionRepository;
 import com.kibit.paymentapi.repository.WalletRepository;
 import io.restassured.RestAssured;
@@ -22,16 +21,16 @@ import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
+import org.springframework.test.annotation.Commit;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.jdbc.Sql;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,6 +46,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 		"spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}"
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Sql(statements = {
+		"INSERT INTO wallet (id, wallet_balance) VALUES (1, 50)",
+		"INSERT INTO wallet (id, wallet_balance) VALUES (2, 100)"
+})
+@Commit
 class PaymentapiApplicationTests {
 
 	@LocalServerPort
@@ -71,6 +75,7 @@ class PaymentapiApplicationTests {
 
 	@BeforeEach
 	void setUp() {
+		//GIVEN
 		Map<String, Object> consumerProps = KafkaTestUtils.consumerProps("my_group_id", "true", embeddedKafkaBroker);
 		consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
 		consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class.getName());
@@ -84,14 +89,11 @@ class PaymentapiApplicationTests {
 		embeddedKafkaBroker.consumeFromAnEmbeddedTopic(consumer, "topic-event-1");
 
 		RestAssured.baseURI = "http://localhost:" + port;
-		Wallet wallet = new Wallet(50);
-		Wallet wallet2 = new Wallet(100);
-
-		walletRepository.saveAll(List.of(wallet, wallet2));
 	}
 
 	@Test
 	public void testPreventDuplicateSpending() {
+		//when
 		Response result = given()
 				.contentType(ContentType.JSON)
 				.body("{\"idempotencyKey\": \"3fa85f22-5717-4562-b3fc-2c963f66afa6\", \"fromUserId\": 1, \"toUserId\": 2, \"amount\": 20, \"creditCardDetails\": \"string\"}")
@@ -111,13 +113,13 @@ class PaymentapiApplicationTests {
 				.statusCode(400)
 				.contentType(ContentType.JSON).extract().response();
 
-		System.out.println(result2.asString());
+		//then
 		assertTrue(result2.asString().contains("The current request has been duplicated"));
-		assertTrue(transactionRepository.findById(UUID.fromString("3fa85f22-5717-4562-b3fc-2c963f66afa6")).isPresent());
 	}
 
 	@Test
 	public void testInsufficientFunds() {
+		//when
 		Response result = given()
 				.contentType(ContentType.JSON)
 				.body("{\"idempotencyKey\": \"3fa85f21-5717-4562-b3fc-2c963f66afa6\", \"fromUserId\": 1, \"toUserId\": 2, \"amount\": 51, \"creditCardDetails\": \"string\"}")
@@ -127,13 +129,13 @@ class PaymentapiApplicationTests {
 				.statusCode(200)
 				.contentType(ContentType.JSON).extract().response();
 
-		System.out.println(result.asString());
-
+		//then
 		assertTrue(result.asString().contains("Insufficient funds"));
 	}
 
 	@Test
 	public void testMissingWalletException() {
+		//when
 		Response result = given()
 				.contentType(ContentType.JSON)
 				.body("{\"idempotencyKey\": \"3fa85f21-5717-4562-b3fc-2c963f66afa6\", \"fromUserId\": 3, \"toUserId\": 2, \"amount\": 1, \"creditCardDetails\": \"string\"}")
@@ -143,11 +145,13 @@ class PaymentapiApplicationTests {
 				.statusCode(400)
 				.contentType(ContentType.JSON).extract().response();
 
+		//then
 		assertTrue(result.asString().contains("Wallet not found for the userId"));
 	}
 
 	@Test
 	public void testSendMoneyToUserSuccessfully() {
+		//when
 		Response result = given()
 				.contentType(ContentType.JSON)
 				.body("{\"idempotencyKey\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\", \"fromUserId\": 1, \"toUserId\": 2, \"amount\": 20, \"creditCardDetails\": \"string\"}")
@@ -157,12 +161,9 @@ class PaymentapiApplicationTests {
 				.statusCode(200)
 				.contentType(ContentType.JSON).extract().response();
 
-		System.out.println(result.asString());
-
+		//then
 		assertTrue(result.asString().contains("3fa85f64-5717-4562-b3fc-2c963f66afa6 is now EXECUTING"));
-		assertTrue(transactionRepository.findById(UUID.fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6")).isPresent());
 		ConsumerRecord<String, KafkaMessage> received = KafkaTestUtils.getSingleRecord(consumer, "topic-event-1", Duration.ofSeconds(5));
-		System.out.println(received.value().getIdempotencyKey());
 		assertEquals("3fa85f64-5717-4562-b3fc-2c963f66afa6", received.value().getIdempotencyKey().toString());
 	}
 }

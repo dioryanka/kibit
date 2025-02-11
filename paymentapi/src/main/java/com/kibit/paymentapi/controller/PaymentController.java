@@ -36,7 +36,7 @@ public class PaymentController {
         this.transactionRepository = transactionRepository;
     }
 
-    @Bulkhead(name = "sendMoneyBulkHead", fallbackMethod = "fallbackSendMoney")
+    @Bulkhead(name = "sendMoneyBulkHead")
     @PostMapping("/sendMoney")
     public ResponseEntity<SendMoneyResponse> sendMoney(@RequestBody SendMoneyRequest sendMoneyRequest) {
         SendMoneyResponse sendMoneyResponse = paymentService.proceedMoneyTransfer(sendMoneyRequest);
